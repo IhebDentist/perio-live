@@ -22,7 +22,10 @@ export default function HostLanding() {
       if (!user) throw new Error('Unable to authenticate host');
 
       const code = generateSessionCode();
-      const { data: session, error } = await supabase
+
+      // Cast supabase to any to avoid TypeScript type errors with insert
+      const db = supabase as any;
+      const { data: session, error } = await db
         .from('sessions')
         .insert({
           code,
