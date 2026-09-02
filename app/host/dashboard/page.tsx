@@ -59,40 +59,32 @@ export default function HostDashboard() {
   }, []);
 
   const fetchSession = async (id: string) => {
-  setLoading(true);
-  try {
-    const { data, error } = await supabase.from('sessions').select('*').eq('id', id).single();
-    if (error) throw error;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('sessions').select('*').eq('id', id).single();
+      if (error) throw error;
 
-    // Explicitly cast data to Session | null
-    const sessionData = data as Session | null;
-    if (!sessionData) {
-      throw new Error('Session not found');
-    }
+      // Explicitly cast data to Session | null
+      const sessionData = data as Session | null;
+      if (!sessionData) {
+        throw new Error('Session not found');
+      }
 
-    setSession(sessionData);
+      setSession(sessionData);
 
-    // Load participants
-    const { data: participantsData } = await supabase.from('participants').select('*').eq('session_id', id);
-    setParticipants(participantsData || []);
+      // Load participants
+      const { data: participantsData } = await supabase.from('participants').select('*').eq('session_id', id);
+      setParticipants(participantsData || []);
 
-    // Load responses for current question if any
-    if (sessionData.current_question) {
-      const { data: responsesData } = await supabase
-        .from('responses')
-        .select('*')
-        .eq('session_id', id)
-        .eq('question_id', sessionData.current_question);
-      setResponses(responsesData || []);
-    }
-  } catch (err) {
-    console.error(err);
-    alert('Could not load session. Redirecting to host start.');
-    router.push('/host');
-  } finally {
-    setLoading(false);
-  }
-};
+      // Load responses for current question if any
+      if (sessionData.current_question) {
+        const { data: responsesData } = await supabase
+          .from('responses')
+          .select('*')
+          .eq('session_id', id)
+          .eq('question_id', sessionData.current_question);
+        setResponses(responsesData || []);
+      }
     } catch (err) {
       console.error(err);
       alert('Could not load session. Redirecting to host start.');
@@ -108,33 +100,73 @@ export default function HostDashboard() {
 
     const sessionChannel = supabase
       .channel(`session-${session.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` }, (payload) => {
-        const newSession = payload.new as Session;
-        setSession(newSession);
-        if (newSession.current_question !== session.current_question) {
-          setResponses([]);
-          if (newSession.current_question) {
-            supabase.from('responses').select('*').eq('session_id', newSession.id).eq('question_id', newSession.current_question).then(({ data }) => setResponses(data || []));
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sessions',
+          filter: `id=eq.${session.id}`,
+        },
+        (payload) => {
+          const newSession = payload.new as Session;
+          setSession(newSession);
+          if (newSession.current_question !== session.current_question) {
+            setResponses([]);
+            if (newSession.current_question) {
+              supabase
+                .from('responses')
+                .select('*')
+                .eq('session_id', newSession.id)
+                .eq('question_id', newSession.current_question)
+                .then(({ data }) => setResponses(data || []));
+            }
           }
         }
-      })
+      )
       .subscribe();
 
     const participantChannel = supabase
       .channel(`participants-${session.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${session.id}` }, (payload) => {
-        if (payload.eventType === 'INSERT') setParticipants(prev => [...prev, payload.new as Participant]);
-        else if (payload.eventType === 'DELETE') setParticipants(prev => prev.filter(p => p.id !== payload.old.id));
-        else if (payload.eventType === 'UPDATE') setParticipants(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p));
-      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'participants',
+          filter: `session_id=eq.${session.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setParticipants((prev) => [...prev, payload.new as Participant]);
+          } else if (payload.eventType === 'DELETE') {
+            setParticipants((prev) => prev.filter((p) => p.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            setParticipants((prev) =>
+              prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
+            );
+          }
+        }
+      )
       .subscribe();
 
     const responseChannel = supabase
       .channel(`responses-${session.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'responses', filter: `session_id=eq.${session.id}` }, (payload) => {
-        const newResp = payload.new as Response;
-        if (newResp.question_id === session.current_question) setResponses(prev => [...prev, newResp]);
-      })
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'responses',
+          filter: `session_id=eq.${session.id}`,
+        },
+        (payload) => {
+          const newResp = payload.new as Response;
+          if (newResp.question_id === session.current_question) {
+            setResponses((prev) => [...prev, newResp]);
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -144,19 +176,26 @@ export default function HostDashboard() {
     };
   }, [session?.id, session?.current_question]);
 
+  // Update question object when current_question changes
   useEffect(() => {
     if (session?.current_question) {
-      const q = QUESTIONS.find(q => q.question_number === session.current_question);
+      const q = QUESTIONS.find((q) => q.question_number === session.current_question);
       setQuestion(q || QUESTIONS[0]);
     }
   }, [session?.current_question]);
 
+  // Fetch all responses when session ends
   useEffect(() => {
     if (session?.status === 'ended' && session.id) {
-      supabase.from('responses').select('*').eq('session_id', session.id).then(({ data }) => setAllResponses(data || []));
+      supabase
+        .from('responses')
+        .select('*')
+        .eq('session_id', session.id)
+        .then(({ data }) => setAllResponses(data || []));
     }
   }, [session?.status, session?.id]);
 
+  // Host actions
   const nextQuestion = async () => {
     if (!session) return;
     if (session.current_question >= totalQuestions) {
@@ -164,20 +203,50 @@ export default function HostDashboard() {
       return;
     }
     const next = session.current_question + 1;
-    await updateSession({ current_question: next, reveal_answer: false, lock_responses: false, status: 'active' });
+    await updateSession({
+      current_question: next,
+      reveal_answer: false,
+      lock_responses: false,
+      status: 'active',
+    });
   };
 
-  const lockResponses = async () => { if (!session) return; await updateSession({ lock_responses: true }); };
-  const unlockResponses = async () => { if (!session) return; await updateSession({ lock_responses: false }); };
-  const revealAnswer = async () => { if (!session) return; await updateSession({ reveal_answer: true, lock_responses: true }); };
-  const hideAnswer = async () => { if (!session) return; await updateSession({ reveal_answer: false }); };
+  const lockResponses = async () => {
+    if (!session) return;
+    await updateSession({ lock_responses: true });
+  };
+
+  const unlockResponses = async () => {
+    if (!session) return;
+    await updateSession({ lock_responses: false });
+  };
+
+  const revealAnswer = async () => {
+    if (!session) return;
+    await updateSession({ reveal_answer: true, lock_responses: true });
+  };
+
+  const hideAnswer = async () => {
+    if (!session) return;
+    await updateSession({ reveal_answer: false });
+  };
+
   const restartQuestion = async () => {
     if (!session) return;
-    await supabase.from('responses').delete().eq('session_id', session.id).eq('question_id', session.current_question);
+    await supabase
+      .from('responses')
+      .delete()
+      .eq('session_id', session.id)
+      .eq('question_id', session.current_question);
     await updateSession({ reveal_answer: false, lock_responses: false });
     setResponses([]);
   };
-  const endSession = async () => { if (!session) return; await updateSession({ status: 'ended' }); };
+
+  const endSession = async () => {
+    if (!session) return;
+    await updateSession({ status: 'ended' });
+  };
+
   const updateSession = async (updates: Partial<Session>) => {
     if (!session) return;
     const { error } = await supabase.from('sessions').update(updates).eq('id', session.id);
@@ -194,22 +263,31 @@ export default function HostDashboard() {
     }
   };
 
-  // Demo mode (simplified)
+  // Demo mode simulation
   const simulateDemo = () => {
     setDemoActive(true);
     const options = question.options;
     const counts: Record<string, number> = {};
-    options.forEach(opt => counts[opt] = 0);
-    const weights = [0.2, 0.5, 0.2, 0.1];
-    for (let i = 0; i < demoCount; i++) {
+    options.forEach((opt) => (counts[opt] = 0));
+    const n = demoCount;
+    const weights = [0.2, 0.5, 0.2, 0.1]; // typical distribution
+    for (let i = 0; i < n; i++) {
       let r = Math.random();
       let idx = 0;
-      while (r > weights[idx] && idx < weights.length - 1) { r -= weights[idx]; idx++; }
+      while (r > weights[idx]) {
+        r -= weights[idx];
+        idx++;
+        if (idx >= weights.length) idx = 0;
+      }
       counts[options[idx]]++;
     }
     setDemoResponses(counts);
   };
-  const stopDemo = () => { setDemoActive(false); setDemoResponses({}); };
+
+  const stopDemo = () => {
+    setDemoActive(false);
+    setDemoResponses({});
+  };
 
   if (loading) {
     return (
@@ -230,7 +308,7 @@ export default function HostDashboard() {
     );
   }
 
-  // Results screen
+  // Results screen when session ended
   if (session.status === 'ended') {
     return (
       <div className="min-h-screen bg-[#EAF2F8] p-4 md:p-8">
@@ -241,10 +319,13 @@ export default function HostDashboard() {
           </div>
 
           <div className="space-y-6">
-            {QUESTIONS.map(q => {
-              const qResponses = allResponses.filter(r => r.question_id === q.question_number);
+            {QUESTIONS.map((q) => {
+              const qResponses = allResponses.filter((r) => r.question_id === q.question_number);
               const total = qResponses.length;
-              const correctCount = q.correct_answer ? qResponses.filter(r => r.answer.startsWith(q.correct_answer)).length : 0;
+              let correctCount = 0;
+              if (q.correct_answer) {
+                correctCount = qResponses.filter((r) => r.answer.startsWith(q.correct_answer)).length;
+              }
               const percentage = total ? Math.round((correctCount / total) * 100) : 0;
               return (
                 <div key={q.question_number} className="card p-6">
@@ -257,7 +338,7 @@ export default function HostDashboard() {
                     <div>
                       <p className="font-semibold text-slate-700">Open‑ended responses ({total}):</p>
                       <ul className="list-disc list-inside mt-2 space-y-1">
-                        {qResponses.map(resp => (
+                        {qResponses.map((resp) => (
                           <li key={resp.id} className="text-slate-600">{resp.answer}</li>
                         ))}
                       </ul>
@@ -280,13 +361,13 @@ export default function HostDashboard() {
             <h2 className="text-3xl font-bold text-navy mb-4">AUDIENCE SCORE</h2>
             <p className="text-6xl font-extrabold text-teal-600 mb-6">
               {(() => {
-                const correctQuestions = QUESTIONS.filter(q => q.correct_answer);
-                const allCorrect = allResponses.filter(r => {
-                  const q = QUESTIONS.find(qq => qq.question_number === r.question_id);
+                const correctQuestions = QUESTIONS.filter((q) => q.correct_answer);
+                const allCorrect = allResponses.filter((r) => {
+                  const q = QUESTIONS.find((qq) => qq.question_number === r.question_id);
                   return q?.correct_answer && r.answer.startsWith(q.correct_answer);
                 });
-                const allWithCorrect = allResponses.filter(r => {
-                  const q = QUESTIONS.find(qq => qq.question_number === r.question_id);
+                const allWithCorrect = allResponses.filter((r) => {
+                  const q = QUESTIONS.find((qq) => qq.question_number === r.question_id);
                   return q?.correct_answer;
                 });
                 return allWithCorrect.length ? Math.round((allCorrect.length / allWithCorrect.length) * 100) : 0;
@@ -313,13 +394,23 @@ export default function HostDashboard() {
 
   // Active session view
   const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join?code=${session.code}` : '';
+
   const currentResponses = demoActive
-    ? Object.entries(demoResponses).map(([answer, count]) => ({ answer, count, percentage: demoCount ? Math.round((count / demoCount) * 100) : 0 }))
-    : question.options.map(opt => {
-        const count = responses.filter(r => r.answer === opt).length;
+    ? Object.entries(demoResponses).map(([answer, count]) => ({
+        answer,
+        count,
+        percentage: demoCount ? Math.round((count / demoCount) * 100) : 0,
+      }))
+    : question.options.map((opt) => {
+        const count = responses.filter((r) => r.answer === opt).length;
         const total = responses.length;
-        return { answer: opt, count, percentage: total ? Math.round((count / total) * 100) : 0 };
+        return {
+          answer: opt,
+          count,
+          percentage: total ? Math.round((count / total) * 100) : 0,
+        };
       });
+
   const participantsCount = demoActive ? demoCount : participants.length;
   const answeredCount = demoActive ? demoCount : responses.length;
 
@@ -393,7 +484,7 @@ export default function HostDashboard() {
           {question.type !== 'text' ? (
             <>
               <div className="space-y-2">
-                {question.options.map(opt => (
+                {question.options.map((opt) => (
                   <div key={opt} className={`py-3 px-4 rounded-xl border-2 transition-colors ${
                     session.reveal_answer && question.correct_answer && opt.startsWith(question.correct_answer)
                       ? 'bg-teal-100 border-teal-500 font-semibold'
@@ -421,11 +512,11 @@ export default function HostDashboard() {
                 {responses.length === 0 ? (
                   <p className="text-slate-500 text-center py-8">No answers yet. Waiting for responses...</p>
                 ) : (
-                  responses.map(resp => (
+                  responses.map((resp) => (
                     <div key={resp.id} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                       <p className="text-slate-800">{resp.answer}</p>
                       <p className="text-xs text-slate-400 mt-1">
-                        {participants.find(p => p.id === resp.participant_id)?.display_name || 'Anonymous'}
+                        {participants.find((p) => p.id === resp.participant_id)?.display_name || 'Anonymous'}
                       </p>
                     </div>
                   ))
