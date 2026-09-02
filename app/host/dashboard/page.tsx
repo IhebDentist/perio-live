@@ -95,38 +95,58 @@ export default function HostDashboard() {
 
     const sessionChannel = supabase
       .channel(`session-${session.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` }, (payload) => {
-        const newSession = payload.new as Session;
-        setSession(newSession);
-        if (newSession.current_question !== session.current_question) {
-          setResponses([]);
-          if (newSession.current_question) {
-            supabase
-              .from('responses')
-              .select('*')
-              .eq('session_id', newSession.id)
-              .eq('question_id', newSession.current_question)
-              .then(({ data }) => setResponses(data || []));
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` },
+        (payload) => {
+          const newSession = payload.new as Session;
+          setSession(newSession);
+          if (newSession.current_question !== session.current_question) {
+            setResponses([]);
+            if (newSession.current_question) {
+              supabase
+                .from('responses')
+                .select('*')
+                .eq('session_id', newSession.id)
+                .eq('question_id', newSession.current_question)
+                .then(({ data }) => setResponses(data || []));
+            }
           }
         }
-      })
+      )
       .subscribe();
 
     const participantChannel = supabase
       .channel(`participants-${session.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${session.id}` }, (payload) => {
-        if (payload.eventType === 'INSERT') setParticipants(prev => [...prev, payload.new as Participant]);
-        else if (payload.eventType === 'DELETE') setParticipants(prev => prev.filter(p => p.id !== payload.old.id));
-        else if (payload.eventType === 'UPDATE') setParticipants(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p));
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${session.id}` },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setParticipants((prev) => [...prev, payload.new as Participant]);
+          } else if (payload.eventType === 'DELETE') {
+            setParticipants((prev) => prev.filter((p) => p.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            setParticipants((prev) =>
+              prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
+            );
+          }
+        }
+      )
       .subscribe();
 
     const responseChannel = supabase
       .channel(`responses-${session.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'responses', filter: `session_id=eq.${session.id}` }, (payload) => {
-        const newResp = payload.new as Response;
-        if (newResp.question_id === session.current_question) setResponses(prev => [...prev, newResp]);
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'responses', filter: `session_id=eq.${session.id}` },
+        (payload) => {
+          const newResp = payload.new as Response;
+          if (newResp.question_id === session.current_question) {
+            setResponses((prev) => [...prev, newResp]);
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -139,7 +159,7 @@ export default function HostDashboard() {
   // Update question object when current_question changes
   useEffect(() => {
     if (session?.current_question) {
-      const q = QUESTIONS.find(q => q.question_number === session.current_question);
+      const q = QUESTIONS.find((q) => q.question_number === session.current_question);
       setQuestion(q || QUESTIONS[0]);
     }
   }, [session?.current_question]);
@@ -171,10 +191,26 @@ export default function HostDashboard() {
     });
   };
 
-  const lockResponses = async () => { if (!session) return; await updateSession({ lock_responses: true }); };
-  const unlockResponses = async () => { if (!session) return; await updateSession({ lock_responses: false }); };
-  const revealAnswer = async () => { if (!session) return; await updateSession({ reveal_answer: true, lock_responses: true }); };
-  const hideAnswer = async () => { if (!session) return; await updateSession({ reveal_answer: false }); };
+  const lockResponses = async () => {
+    if (!session) return;
+    await updateSession({ lock_responses: true });
+  };
+
+  const unlockResponses = async () => {
+    if (!session) return;
+    await updateSession({ lock_responses: false });
+  };
+
+  const revealAnswer = async () => {
+    if (!session) return;
+    await updateSession({ reveal_answer: true, lock_responses: true });
+  };
+
+  const hideAnswer = async () => {
+    if (!session) return;
+    await updateSession({ reveal_answer: false });
+  };
+
   const restartQuestion = async () => {
     if (!session) return;
     await supabase
@@ -185,14 +221,16 @@ export default function HostDashboard() {
     await updateSession({ reveal_answer: false, lock_responses: false });
     setResponses([]);
   };
-  const endSession = async () => { if (!session) return; await updateSession({ status: 'ended' }); };
+
+  const endSession = async () => {
+    if (!session) return;
+    await updateSession({ status: 'ended' });
+  };
 
   const updateSession = async (updates: Partial<Session>) => {
     if (!session) return;
-    const { error } = await supabase
-      .from('sessions')
-      .update(updates as any)   // cast to any to avoid type mismatch
-      .eq('id', session.id);
+    const db = supabase as any; // cast entire client to any to avoid type errors
+    const { error } = await db.from('sessions').update(updates).eq('id', session.id);
     if (error) console.error(error);
   };
 
@@ -211,9 +249,9 @@ export default function HostDashboard() {
     setDemoActive(true);
     const options = question.options;
     const counts: Record<string, number> = {};
-    options.forEach(opt => counts[opt] = 0);
+    options.forEach((opt) => (counts[opt] = 0));
     const n = demoCount;
-    const weights = [0.2, 0.5, 0.2, 0.1];
+    const weights = [0.2, 0.5, 0.2, 0.1]; // typical distribution
     for (let i = 0; i < n; i++) {
       let r = Math.random();
       let idx = 0;
@@ -263,12 +301,12 @@ export default function HostDashboard() {
 
           <div className="space-y-6">
             {QUESTIONS.map((q) => {
-              const qResponses = allResponses.filter(r => r.question_id === q.question_number);
+              const qResponses = allResponses.filter((r) => r.question_id === q.question_number);
               const total = qResponses.length;
               let correctCount = 0;
               const correctAnswer = q.correct_answer;
               if (correctAnswer) {
-                correctCount = qResponses.filter(r => r.answer.startsWith(correctAnswer)).length;
+                correctCount = qResponses.filter((r) => r.answer.startsWith(correctAnswer)).length;
               }
               const percentage = total ? Math.round((correctCount / total) * 100) : 0;
               return (
