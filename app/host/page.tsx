@@ -51,10 +51,10 @@ export default function HostLanding() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-[#EAF2F8]">
       <div className="card max-w-xl w-full p-8 md:p-10 text-center">
-        {/* Hero image – replace src with your image path */}
+        {/* Hero image */}
         <div className="mb-6 flex justify-center">
           <Image
-            src="/images/perio-banner.png"   // <-- CHANGE THIS to your image file name
+            src="/images/perio-banner.png"
             alt="Perio Live banner"
             width={500}
             height={200}
