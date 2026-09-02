@@ -35,7 +35,6 @@ export default function PresentationView() {
   const [responses, setResponses] = useState<Response[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
 
-  // Load session ID from localStorage
   useEffect(() => {
     const id = localStorage.getItem('host_session_id');
     if (!id) {
@@ -45,19 +44,16 @@ export default function PresentationView() {
     setSessionId(id);
   }, []);
 
-  // Fetch session and subscribe to updates
   useEffect(() => {
     if (!sessionId) return;
 
-    // Initial fetch
     supabase
       .from('sessions')
       .select('*')
       .eq('id', sessionId)
       .single()
-      .then(({ data }) => setSession(data));
+      .then(({ data }) => setSession(data as Session | null));
 
-    // Subscribe to session changes
     const sessionSub = supabase
       .channel(`pres-session-${sessionId}`)
       .on(
@@ -68,13 +64,10 @@ export default function PresentationView() {
           table: 'sessions',
           filter: `id=eq.${sessionId}`,
         },
-        (payload) => {
-          setSession(payload.new as Session);
-        }
+        (payload) => setSession(payload.new as Session)
       )
       .subscribe();
 
-    // Participants count
     const participantSub = supabase
       .channel(`pres-participants-${sessionId}`)
       .on(
@@ -98,7 +91,6 @@ export default function PresentationView() {
     };
   }, [sessionId]);
 
-  // Fetch responses for current question and subscribe
   useEffect(() => {
     if (!session?.current_question || !sessionId) return;
 
@@ -107,7 +99,7 @@ export default function PresentationView() {
       .select('*')
       .eq('session_id', sessionId)
       .eq('question_id', session.current_question)
-      .then(({ data }) => setResponses(data || []));
+      .then(({ data }) => setResponses((data as Response[]) || []));
 
     const respSub = supabase
       .channel(`pres-responses-${sessionId}-${session.current_question}`)
@@ -119,9 +111,7 @@ export default function PresentationView() {
           table: 'responses',
           filter: `session_id=eq.${sessionId} and question_id=eq.${session.current_question}`,
         },
-        (payload) => {
-          setResponses((prev) => [...prev, payload.new as Response]);
-        }
+        (payload) => setResponses((prev) => [...prev, payload.new as Response])
       )
       .subscribe();
 
@@ -156,42 +146,45 @@ export default function PresentationView() {
 
   return (
     <div className="min-h-screen bg-navy text-white flex flex-col items-center justify-center p-8 relative">
-      {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-navy via-navy to-teal-900 opacity-70 pointer-events-none" />
-
+      <div className="absolute inset-0 bg-gradient-to-b from-navy to-teal-900 opacity-80 pointer-events-none" />
       <div className="relative w-full max-w-6xl">
         <div className="flex justify-between items-center mb-10">
-          <div>
-            <h1 className="text-5xl font-extrabold tracking-tight">PERIO LIVE</h1>
-            <p className="text-teal-300 text-xl">Dr. Alghalia Al-Mansoori</p>
+          <div className="flex items-center gap-4">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-10 w-10 text-teal-300">
+              <path d="M12 5.5c-1.5-1.5-3-2-4.5-2C5 3.5 4 5 4 7c0 2 1 3.5 2.5 3.5S9 9 12 9s2 1.5 3.5 1.5S20 9 20 7c0-2-1-3.5-3.5-3.5-1.5 0-3 .5-4.5 2Z" />
+              <path d="M12 9c-2 0-3 3-3 6 0 2 1 3 3 3s3-1 3-3c0-3-1-6-3-6Z" />
+            </svg>
+            <h1 className="text-4xl font-extrabold tracking-tight">PERIO LIVE</h1>
           </div>
-          <div className="text-2xl">
-            Participants: <span className="font-bold text-teal-300">{participants.length}</span>
-          </div>
+          <div className="text-2xl">Participants: <span className="font-bold text-teal-300">{participants.length}</span></div>
         </div>
 
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 md:p-10 border border-white/20">
-          <h2 className="text-4xl font-bold mb-4">
-            QUESTION {String(session.current_question).padStart(2, '0')}
-          </h2>
+          <h2 className="text-4xl font-bold mb-4">QUESTION {String(session.current_question).padStart(2, '0')}</h2>
           <p className="text-2xl mb-8">{question.question_text}</p>
 
-          <div className="mb-8">
-            <LiveBarChart
-              data={answerCounts}
-              correctAnswer={question.correct_answer}
-              revealAnswer={session.reveal_answer}
-            />
-          </div>
+          {question.type !== 'text' ? (
+            <div className="mb-8">
+              <LiveBarChart data={answerCounts} correctAnswer={question.correct_answer} revealAnswer={session.reveal_answer} />
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto mb-8">
+              {responses.length === 0 ? (
+                <p className="text-white/70 text-center py-8">No answers yet.</p>
+              ) : (
+                responses.map((resp) => (
+                  <div key={resp.id} className="bg-white/10 rounded-xl p-4 border border-white/20">
+                    <p className="text-white">{resp.answer}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
           {session.reveal_answer && question.correct_answer && (
             <div className="text-center">
-              <p className="text-3xl font-semibold text-teal-300">
-                Correct Answer: {question.correct_answer}
-              </p>
-              {question.explanation && (
-                <p className="mt-2 text-xl text-white/90">{question.explanation}</p>
-              )}
+              <p className="text-3xl font-semibold text-teal-300">Correct Answer: {question.correct_answer}</p>
+              {question.explanation && <p className="mt-2 text-xl text-white/90">{question.explanation}</p>}
             </div>
           )}
         </div>
