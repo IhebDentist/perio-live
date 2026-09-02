@@ -24,7 +24,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     question_number: 2,
-    question_text: "BOOST gave local doxycycline before surgery to otherwise well-controlled patients. Smart site-optimization, or antimicrobial overuse? Where's your line?",
+    question_text: "To what extent do you agree that peri-implantitis should be considered a clinician-initiated complication rather than primarily a plaque-induced disease?",
     options: [],
     correct_answer: null,
     explanation: null,
@@ -32,7 +32,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     question_number: 3,
-    question_text: "This RCT had 30 patients per arm at one center. Does it change your protocol tomorrow, or are you waiting for more evidence?",
+    question_text: "How might our surgical and prosthetic decisions be modified to reduce the risk of exposing the micro-rough implant surface?",
     options: [],
     correct_answer: null,
     explanation: null,
@@ -40,7 +40,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     question_number: 4,
-    question_text: "~71% of peri-implantitis cases are linked to clinician decisions, not biofilm alone. Does this change how you talk to patients about their role — or does it shift blame too far onto the clinician?",
+    question_text: "When planning implant treatment, which clinician-controlled risk factors do you think are most important to address, and why?",
     options: [],
     correct_answer: null,
     explanation: null,
@@ -48,7 +48,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     question_number: 5,
-    question_text: "Should BOOST-style local 'priming' be tested before implant placement, not just before periodontal regeneration? What's the risk of extrapolating it?",
+    question_text: "Based on the BOOST study findings, how could controlling residual inflammation before periodontal regenerative surgery influence healing and long-term outcomes?",
     options: [],
     correct_answer: null,
     explanation: null,
@@ -56,7 +56,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     question_number: 6,
-    question_text: "If you could change only ONE clinician-controlled factor in your own practice starting Monday — implant position, emergence angle, cementation, or platform switching — which one, and why?",
+    question_text: "Do you think local doxycycline before regenerative surgery should influence routine clinical practice? Why or why not, and what additional evidence would you want before adopting it?",
     options: [],
     correct_answer: null,
     explanation: null,

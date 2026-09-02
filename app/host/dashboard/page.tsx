@@ -177,6 +177,11 @@ export default function HostDashboard() {
   }, [session?.status, session?.id]);
 
   // Host actions
+  const startQuestion = async () => {
+    if (!session) return;
+    await updateSession({ status: 'active', lock_responses: false, reveal_answer: false });
+  };
+
   const nextQuestion = async () => {
     if (!session) return;
     if (session.current_question >= totalQuestions) {
@@ -230,7 +235,7 @@ export default function HostDashboard() {
 
   const updateSession = async (updates: Partial<Session>) => {
     if (!session) return;
-    const db = supabase as any; // cast entire client to any to avoid type errors
+    const db = supabase as any;
     const { error } = await db.from('sessions').update(updates).eq('id', session.id);
     if (error) console.error(error);
   };
@@ -252,7 +257,7 @@ export default function HostDashboard() {
     const counts: Record<string, number> = {};
     options.forEach((opt) => (counts[opt] = 0));
     const n = demoCount;
-    const weights = [0.2, 0.5, 0.2, 0.1]; // typical distribution
+    const weights = [0.2, 0.5, 0.2, 0.1];
     for (let i = 0; i < n; i++) {
       let r = Math.random();
       let idx = 0;
@@ -508,23 +513,31 @@ export default function HostDashboard() {
             </div>
           )}
 
-          {/* Controls */}
-          <div className="mt-8 flex flex-wrap gap-3 justify-center">
-            {!session.lock_responses ? (
-              <button onClick={lockResponses} className="btn-secondary">Lock Responses</button>
-            ) : (
-              <button onClick={unlockResponses} className="btn-secondary">Unlock Responses</button>
-            )}
-            {!session.reveal_answer && question.correct_answer ? (
-              <button onClick={revealAnswer} className="btn-primary">Reveal Answer</button>
-            ) : session.reveal_answer ? (
-              <button onClick={hideAnswer} className="btn-secondary">Hide Answer</button>
-            ) : null}
-            <button onClick={restartQuestion} className="btn-secondary">Restart Question</button>
-            <button onClick={nextQuestion} className="btn-primary">
-              {session.current_question >= totalQuestions ? 'End Session & Results' : 'Next Question'}
-            </button>
-          </div>
+          {/* Host controls – show Start button only when waiting */}
+          {session.status === 'waiting' ? (
+            <div className="mt-8 flex justify-center">
+              <button onClick={startQuestion} className="btn-primary text-lg px-8 py-4">
+                Start Question 1
+              </button>
+            </div>
+          ) : (
+            <div className="mt-8 flex flex-wrap gap-3 justify-center">
+              {!session.lock_responses ? (
+                <button onClick={lockResponses} className="btn-secondary">Lock Responses</button>
+              ) : (
+                <button onClick={unlockResponses} className="btn-secondary">Unlock Responses</button>
+              )}
+              {!session.reveal_answer && question.correct_answer ? (
+                <button onClick={revealAnswer} className="btn-primary">Reveal Answer</button>
+              ) : session.reveal_answer ? (
+                <button onClick={hideAnswer} className="btn-secondary">Hide Answer</button>
+              ) : null}
+              <button onClick={restartQuestion} className="btn-secondary">Restart Question</button>
+              <button onClick={nextQuestion} className="btn-primary">
+                {session.current_question >= totalQuestions ? 'End Session & Results' : 'Next Question'}
+              </button>
+            </div>
+          )}
 
           {session.reveal_answer && question.explanation && (
             <div className="mt-6 p-5 bg-lavender rounded-2xl border border-lavender">
