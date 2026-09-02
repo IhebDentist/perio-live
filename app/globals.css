@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #12294B;
+  --teal: #4CA69B;
+  --teal-light: #5F9C93;
+  --aqua: #D4E9F2;
+  --light-blue: #EAF2F8;
+  --lavender: #E6E6FA;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #EAF2F8;
+  min-height: 100vh;
+  color: #12294B;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle pattern (optional – can be removed) */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2312294B' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+#__next {
+  position: relative;
+  z-index: 1;
+}
+
+.card {
+  @apply rounded-2xl bg-white/95 shadow-lg border border-slate-200/70;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 8px 30px rgba(18, 41, 75, 0.08);
+}
+
+.btn-primary {
+  @apply bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300;
+  box-shadow: 0 4px 12px rgba(76, 166, 155, 0.25);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 6px 16px rgba(76, 166, 155, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  @apply bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-3 px-6 rounded-xl transition-all duration-300;
+}
+
+.btn-secondary:hover {
+  transform: translateY(-1px);
+}
+
+input[type="text"],
+textarea {
+  @apply border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition-all duration-200;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count {
+  animation: countUp 0.3s ease-out;
+}
