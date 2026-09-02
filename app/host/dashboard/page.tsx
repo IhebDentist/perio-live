@@ -64,19 +64,14 @@ export default function HostDashboard() {
       const { data, error } = await supabase.from('sessions').select('*').eq('id', id).single();
       if (error) throw error;
 
-      // Explicitly cast data to Session | null
       const sessionData = data as Session | null;
-      if (!sessionData) {
-        throw new Error('Session not found');
-      }
+      if (!sessionData) throw new Error('Session not found');
 
       setSession(sessionData);
 
-      // Load participants
       const { data: participantsData } = await supabase.from('participants').select('*').eq('session_id', id);
       setParticipants(participantsData || []);
 
-      // Load responses for current question if any
       if (sessionData.current_question) {
         const { data: responsesData } = await supabase
           .from('responses')
@@ -100,73 +95,38 @@ export default function HostDashboard() {
 
     const sessionChannel = supabase
       .channel(`session-${session.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'sessions',
-          filter: `id=eq.${session.id}`,
-        },
-        (payload) => {
-          const newSession = payload.new as Session;
-          setSession(newSession);
-          if (newSession.current_question !== session.current_question) {
-            setResponses([]);
-            if (newSession.current_question) {
-              supabase
-                .from('responses')
-                .select('*')
-                .eq('session_id', newSession.id)
-                .eq('question_id', newSession.current_question)
-                .then(({ data }) => setResponses(data || []));
-            }
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` }, (payload) => {
+        const newSession = payload.new as Session;
+        setSession(newSession);
+        if (newSession.current_question !== session.current_question) {
+          setResponses([]);
+          if (newSession.current_question) {
+            supabase
+              .from('responses')
+              .select('*')
+              .eq('session_id', newSession.id)
+              .eq('question_id', newSession.current_question)
+              .then(({ data }) => setResponses(data || []));
           }
         }
-      )
+      })
       .subscribe();
 
     const participantChannel = supabase
       .channel(`participants-${session.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'participants',
-          filter: `session_id=eq.${session.id}`,
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setParticipants((prev) => [...prev, payload.new as Participant]);
-          } else if (payload.eventType === 'DELETE') {
-            setParticipants((prev) => prev.filter((p) => p.id !== payload.old.id));
-          } else if (payload.eventType === 'UPDATE') {
-            setParticipants((prev) =>
-              prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
-            );
-          }
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${session.id}` }, (payload) => {
+        if (payload.eventType === 'INSERT') setParticipants(prev => [...prev, payload.new as Participant]);
+        else if (payload.eventType === 'DELETE') setParticipants(prev => prev.filter(p => p.id !== payload.old.id));
+        else if (payload.eventType === 'UPDATE') setParticipants(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p));
+      })
       .subscribe();
 
     const responseChannel = supabase
       .channel(`responses-${session.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'responses',
-          filter: `session_id=eq.${session.id}`,
-        },
-        (payload) => {
-          const newResp = payload.new as Response;
-          if (newResp.question_id === session.current_question) {
-            setResponses((prev) => [...prev, newResp]);
-          }
-        }
-      )
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'responses', filter: `session_id=eq.${session.id}` }, (payload) => {
+        const newResp = payload.new as Response;
+        if (newResp.question_id === session.current_question) setResponses(prev => [...prev, newResp]);
+      })
       .subscribe();
 
     return () => {
@@ -179,7 +139,7 @@ export default function HostDashboard() {
   // Update question object when current_question changes
   useEffect(() => {
     if (session?.current_question) {
-      const q = QUESTIONS.find((q) => q.question_number === session.current_question);
+      const q = QUESTIONS.find(q => q.question_number === session.current_question);
       setQuestion(q || QUESTIONS[0]);
     }
   }, [session?.current_question]);
@@ -211,26 +171,10 @@ export default function HostDashboard() {
     });
   };
 
-  const lockResponses = async () => {
-    if (!session) return;
-    await updateSession({ lock_responses: true });
-  };
-
-  const unlockResponses = async () => {
-    if (!session) return;
-    await updateSession({ lock_responses: false });
-  };
-
-  const revealAnswer = async () => {
-    if (!session) return;
-    await updateSession({ reveal_answer: true, lock_responses: true });
-  };
-
-  const hideAnswer = async () => {
-    if (!session) return;
-    await updateSession({ reveal_answer: false });
-  };
-
+  const lockResponses = async () => { if (!session) return; await updateSession({ lock_responses: true }); };
+  const unlockResponses = async () => { if (!session) return; await updateSession({ lock_responses: false }); };
+  const revealAnswer = async () => { if (!session) return; await updateSession({ reveal_answer: true, lock_responses: true }); };
+  const hideAnswer = async () => { if (!session) return; await updateSession({ reveal_answer: false }); };
   const restartQuestion = async () => {
     if (!session) return;
     await supabase
@@ -241,15 +185,14 @@ export default function HostDashboard() {
     await updateSession({ reveal_answer: false, lock_responses: false });
     setResponses([]);
   };
-
-  const endSession = async () => {
-    if (!session) return;
-    await updateSession({ status: 'ended' });
-  };
+  const endSession = async () => { if (!session) return; await updateSession({ status: 'ended' }); };
 
   const updateSession = async (updates: Partial<Session>) => {
     if (!session) return;
-    const { error } = await supabase.from('sessions').update(updates).eq('id', session.id);
+    const { error } = await supabase
+      .from('sessions')
+      .update(updates as any)   // cast to any to avoid type mismatch
+      .eq('id', session.id);
     if (error) console.error(error);
   };
 
@@ -268,9 +211,9 @@ export default function HostDashboard() {
     setDemoActive(true);
     const options = question.options;
     const counts: Record<string, number> = {};
-    options.forEach((opt) => (counts[opt] = 0));
+    options.forEach(opt => counts[opt] = 0);
     const n = demoCount;
-    const weights = [0.2, 0.5, 0.2, 0.1]; // typical distribution
+    const weights = [0.2, 0.5, 0.2, 0.1];
     for (let i = 0; i < n; i++) {
       let r = Math.random();
       let idx = 0;
@@ -320,11 +263,12 @@ export default function HostDashboard() {
 
           <div className="space-y-6">
             {QUESTIONS.map((q) => {
-              const qResponses = allResponses.filter((r) => r.question_id === q.question_number);
+              const qResponses = allResponses.filter(r => r.question_id === q.question_number);
               const total = qResponses.length;
               let correctCount = 0;
-              if (q.correct_answer) {
-                correctCount = qResponses.filter((r) => r.answer.startsWith(q.correct_answer)).length;
+              const correctAnswer = q.correct_answer;
+              if (correctAnswer) {
+                correctCount = qResponses.filter(r => r.answer.startsWith(correctAnswer)).length;
               }
               const percentage = total ? Math.round((correctCount / total) * 100) : 0;
               return (
@@ -343,9 +287,9 @@ export default function HostDashboard() {
                         ))}
                       </ul>
                     </div>
-                  ) : q.correct_answer ? (
+                  ) : correctAnswer ? (
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-teal-600">Correct: {q.correct_answer}</span>
+                      <span className="font-semibold text-teal-600">Correct: {correctAnswer}</span>
                       <span className="text-slate-500">|</span>
                       <span className="font-semibold">{percentage}% correct</span>
                     </div>
@@ -361,10 +305,10 @@ export default function HostDashboard() {
             <h2 className="text-3xl font-bold text-navy mb-4">AUDIENCE SCORE</h2>
             <p className="text-6xl font-extrabold text-teal-600 mb-6">
               {(() => {
-                const correctQuestions = QUESTIONS.filter((q) => q.correct_answer);
                 const allCorrect = allResponses.filter((r) => {
                   const q = QUESTIONS.find((qq) => qq.question_number === r.question_id);
-                  return q?.correct_answer && r.answer.startsWith(q.correct_answer);
+                  const correctAnswer = q?.correct_answer;
+                  return correctAnswer && r.answer.startsWith(correctAnswer);
                 });
                 const allWithCorrect = allResponses.filter((r) => {
                   const q = QUESTIONS.find((qq) => qq.question_number === r.question_id);
